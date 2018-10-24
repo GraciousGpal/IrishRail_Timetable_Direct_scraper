@@ -1,17 +1,22 @@
 # Import Core Modules
-import re, sys, os, os.path, json
+import re
+import sys
+import os
+import os.path
+import json
 from setuptools.command.easy_install import main as install
 import difflib
 
 
 def moduleinstall(name):
-        install([name])
-        print("Restarting Process!.")
-        os.execl(sys.executable, sys.executable, *sys.argv)
+    install([name])
+    print("Restarting Process!.")
+    os.execl(sys.executable, sys.executable, *sys.argv)
 
 
 # Import Installed Packages
 try:
+    import lxml
     import httplib2
     from bs4 import BeautifulSoup
     from prettytable import PrettyTable
@@ -20,16 +25,16 @@ try:
 except ModuleNotFoundError as e:
     moduleinstall(re.search("'(.*)'", str(e)).group(1))
 
-###### GETTING STATION CODES
+# GETTING STATION CODES
 if not (os.path.isfile("stationcodes.json")):
     url = "http://api.irishrail.ie/realtime/realtime.asmx/getAllStationsXML"
     print("Station Codes Not Found!\n Downloading.....")
-    urllib.request.urlretrieve(url, 'getAllStationsXML.xml')  
+    urllib.request.urlretrieve(url, 'getAllStationsXML.xml')
     e = xml.etree.ElementTree.parse('getAllStationsXML.xml').getroot()
     stationcodes = {}
     objects = e.findall('{http://api.irishrail.ie/realtime/}objStation')
     for x in objects:
-        stationcodes[x[0].text.lower()] =x[4].text
+        stationcodes[x[0].text.lower()] = x[4].text
     with open('stationcodes.json', 'w') as outfile:
         json.dump(stationcodes, outfile, indent=4)
     os.remove("getAllStationsXML.xml")
@@ -37,24 +42,28 @@ if not (os.path.isfile("stationcodes.json")):
 ######
 
 
-
-
 dicts = {}
 http = httplib2.Http()
 
 stationcodes = json.load(open('stationcodes.json'))
 os.remove("stationcodes.json")
+
+
 class Irishrail_Parser:
+
     def __init__(self, code):
         self.version = "2.0"
-        self.code = difflib.get_close_matches(code.lower(), [name for name in stationcodes])
+        self.code = difflib.get_close_matches(
+            code.lower(), [name for name in stationcodes])
         if len(self.code) != 0:
-            self.code = difflib.get_close_matches(code.lower(), [name for name in stationcodes])[0]
+            self.code = difflib.get_close_matches(
+                code.lower(), [name for name in stationcodes])[0]
         else:
             print("CODE Not Found -SETTING DEFAULT [Maynooth]")
             self.code = "maynooth"
-        self.headers = {'Cookie':"key_station='{}'".format(self.code)}
-        sys.stdout.write("Getting Data from Irish Rail [{} :{}]".format(str(self.code), str(stationcodes[self.code])))
+        self.headers = {'Cookie': "key_station='{}'".format(self.code)}
+        sys.stdout.write("Getting Data from Irish Rail [{} :{}]".format(
+            str(self.code), str(stationcodes[self.code])))
         for x in range(0, 5):
             sys.stdout.write('.')
             sys.stdout.flush()
@@ -63,7 +72,8 @@ class Irishrail_Parser:
         except KeyError:
             print("CODE Not Found -SETTING DEFAULT [Maynooth]")
             cde = "MYNTH"
-        self.content = http.request("http://www.irishrail.ie/timetables/live-departure-times?code={}".format(cde), 'GET', headers=self.headers)
+        self.content = http.request(
+            "http://www.irishrail.ie/train-timetables/live-departure-train-times?code={}".format(cde), 'GET', headers=self.headers)
         sys.stdout.write('[Data Acquired]\n')
         self.soup = BeautifulSoup(str(self.content), "lxml")
 
@@ -71,10 +81,11 @@ class Irishrail_Parser:
         northbound = getnorthbound(self.soup)
         northbounds = northbound[:]
         southbound = getsouthbound(self.soup, len(northbounds))
-        # FORMAT  "Destination   "Origin"  "Sch" "ETA" "Due in"  Latest Information"
+        # FORMAT  "Destination   "Origin"  "Sch" "ETA" "Due in"  Latest
+        # Information"
         dicts["northbound"] = northbound
         dicts["southbound"] = southbound
-        if len(dicts["northbound"]) is 0 and len(dicts["southbound"]) is 0 :
+        if len(dicts["northbound"]) is 0 and len(dicts["southbound"]) is 0:
             return "No updates avaliable at this time!."
         else:
             return dicts
@@ -85,19 +96,21 @@ class Irishrail_Parser:
             return "No updates avaliable at this time!."
         else:
             x = PrettyTable()
-            x.field_names = ["Destination", "Origin", "Sch", "ETA", "Due in", "Latest Information"]
+            x.field_names = ["Destination", "Origin", "Sch",
+                             "ETA", "Due in", "Latest Information"]
             for list1s in table["northbound"]:
                 x.add_row(list1s)
             y = PrettyTable()
-            y.field_names = ["Destination", "Origin", "Sch", "ETA", "Due in", "Latest Information"]
+            y.field_names = ["Destination", "Origin", "Sch",
+                             "ETA", "Due in", "Latest Information"]
             for lists in table["southbound"]:
-                    y.add_row(lists)
-            return str("[NORTH] bound \n{} \n [SOUTH] bound\n{}".format(x, y))
+                y.add_row(lists)
+            return str("[NORTH] bound [v] \n{} \n [SOUTH] [^] bound\n{}".format(x, y))
 
 
 def getnorthbound(soup):
-    data =[]
-    rows =[]
+    data = []
+    rows = []
     for item in soup.find_all('div', class_="panel-livedepartures"):
         # print(item.prettify())
         table = item
@@ -108,8 +121,11 @@ def getnorthbound(soup):
             rows = table_body.find_all('tr')
         for row in rows:
             cols = row.find_all('td')
-            cols = [ele.text.strip().replace("\\r", "").replace("\\n", "").replace("\\t", "") for ele in cols]
-            data.append([ele for ele in cols]) # Get rid of empty values # data.append([ele for ele in cols if ele])
+            cols = [ele.text.strip().replace("\\r", "").replace(
+                "\\n", "").replace("\\t", "") for ele in cols]
+            # Get rid of empty values # data.append([ele for ele in cols if
+            # ele])
+            data.append([ele for ele in cols])
     northlist = []
     for item in data:
         if len(item) >= 5 and len(item) <= 6:
@@ -128,8 +144,11 @@ def getsouthbound(soup, datas=None):
             rows = tables.find_all('tr')
             for row in rows:
                 cols = row.find_all('td')
-                cols = [ele.text.strip().replace("\\r", "").replace("\\n", "").replace("\\t", "") for ele in cols]
-                data.append([ele for ele in cols]) # Get rid of empty values # data.append([ele for ele in cols if ele])
+                cols = [ele.text.strip().replace("\\r", "").replace(
+                    "\\n", "").replace("\\t", "") for ele in cols]
+                # Get rid of empty values # data.append([ele for ele in cols if
+                # ele])
+                data.append([ele for ele in cols])
     southlist = []
     for item in data:
         # print(item, len(item))
@@ -147,4 +166,4 @@ if __name__ == "__main__":
         print("#############[IRISH RAIL TIME TABLE]#############")
         variable = input("Enter Station Name :")
         print(Irishrail_Parser(variable))
-        reset = input("Press any key to continue .")
+reset = input("Press any key to continue .")
